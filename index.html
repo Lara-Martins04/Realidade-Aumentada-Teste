@@ -6,128 +6,8 @@
   <title>Aedes AR - Ciclo de Vida</title>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet">
   
-  <!-- A-Frame -->
-  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-  <!-- AR.js for A-Frame -->
-  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-
-  <script>
-    // Componente customizado para lidar com gestos (Zoom e Arrastar)
-    AFRAME.registerComponent('gesture-handler', {
-      schema: {
-        enabled: { default: true },
-        minScale: { default: 0.3 },
-        maxScale: { default: 8 },
-      },
-
-      init: function () {
-        this.handleScale = this.handleScale.bind(this);
-        this.handlePan = this.handlePan.bind(this);
-
-        this.initialScale = this.el.object3D.scale.clone();
-        this.scaleFactor = 1;
-
-        this.internalState = {
-          previousState: null,
-        };
-
-        // Mouse events (Desktop)
-        window.addEventListener('wheel', this.handleScale, { passive: false });
-        
-        let isDragging = false;
-        let previousMousePosition = { x: 0, y: 0 };
-
-        window.addEventListener('mousedown', (e) => {
-          // Ignora se clicou na UI
-          if (e.target.closest('#ui-layer') || e.target.closest('#management-overlay')) return;
-          isDragging = true;
-          previousMousePosition = { x: e.clientX, y: e.clientY };
-        });
-
-        window.addEventListener('mousemove', (e) => {
-          if (!isDragging || !this.data.enabled) return;
-          const deltaMove = {
-            x: e.clientX - previousMousePosition.x,
-            y: e.clientY - previousMousePosition.y
-          };
-          this.handlePan(deltaMove);
-          previousMousePosition = { x: e.clientX, y: e.clientY };
-        });
-
-        window.addEventListener('mouseup', () => { isDragging = false; });
-
-        // Touch events (Mobile)
-        window.addEventListener('touchstart', (e) => {
-          if (e.target.closest('#ui-layer') || e.target.closest('#management-overlay')) return;
-          
-          if (e.touches.length === 1) {
-            this.internalState.previousState = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-          } else if (e.touches.length === 2) {
-            this.internalState.previousState = this.getTouchDistance(e);
-          }
-        }, { passive: false });
-
-        window.addEventListener('touchmove', (e) => {
-          if (!this.data.enabled || e.target.closest('#ui-layer') || e.target.closest('#management-overlay')) return;
-          
-          if (e.touches.length === 1) {
-            const currentState = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-            if (this.internalState.previousState && typeof this.internalState.previousState.x !== 'undefined') {
-              const deltaMove = {
-                x: currentState.x - this.internalState.previousState.x,
-                y: currentState.y - this.internalState.previousState.y
-              };
-              this.handlePan(deltaMove);
-            }
-            this.internalState.previousState = currentState;
-          } else if (e.touches.length === 2) {
-            const currentState = this.getTouchDistance(e);
-            if (this.internalState.previousState && typeof this.internalState.previousState === 'number') {
-              const scaleDelta = currentState / this.internalState.previousState;
-              this.scaleFactor *= scaleDelta;
-              this.scaleFactor = Math.max(this.data.minScale, Math.min(this.data.maxScale, this.scaleFactor));
-              this.el.object3D.scale.set(
-                this.initialScale.x * this.scaleFactor,
-                this.initialScale.y * this.scaleFactor,
-                this.initialScale.z * this.scaleFactor
-              );
-            }
-            this.internalState.previousState = currentState;
-          }
-        }, { passive: false });
-
-        window.addEventListener('touchend', () => {
-          this.internalState.previousState = null;
-        });
-      },
-
-      getTouchDistance: function (e) {
-        const dx = e.touches[0].clientX - e.touches[1].clientX;
-        const dy = e.touches[0].clientY - e.touches[1].clientY;
-        return Math.sqrt(dx * dx + dy * dy);
-      },
-
-      handleScale: function (e) {
-        if (!this.data.enabled || e.target.closest('#ui-layer') || e.target.closest('#management-overlay')) return;
-        
-        const scaleDelta = e.deltaY > 0 ? 0.9 : 1.1;
-        this.scaleFactor *= scaleDelta;
-        this.scaleFactor = Math.max(this.data.minScale, Math.min(this.data.maxScale, this.scaleFactor));
-        this.el.object3D.scale.set(
-          this.initialScale.x * this.scaleFactor,
-          this.initialScale.y * this.scaleFactor,
-          this.initialScale.z * this.scaleFactor
-        );
-      },
-
-      handlePan: function (delta) {
-        // Fator de sensibilidade para o movimento
-        const panFactor = 0.01;
-        this.el.object3D.position.x += delta.x * panFactor;
-        this.el.object3D.position.y -= delta.y * panFactor; // Y é invertido na tela
-      }
-    });
-  </script>
+  <!-- Google Model Viewer (Three.js + WebXR) -->
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 
   <style>
     :root {
@@ -147,22 +27,63 @@
     body {
       margin: 0;
       padding: 0;
-      background-color: transparent !important;
+      background-color: #000;
       color: var(--text-main);
       -webkit-font-smoothing: antialiased;
       overflow: hidden;
-      touch-action: none; /* Previne scroll/zoom nativo do navegador */
     }
 
-    /* AR.js video should be behind everything */
-    video {
+    /* Fundo de Câmera para Desktop / Fora do modo AR */
+    #webcam-bg {
       position: absolute;
       top: 0;
       left: 0;
-      z-index: -1;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: -2;
     }
 
-    /* UI Layer for AR */
+    /* Model Viewer */
+    model-viewer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+      background-color: transparent;
+      --poster-color: transparent;
+    }
+
+    /* Botão de AR Customizado */
+    .btn-ar {
+      position: absolute;
+      bottom: 260px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 50px;
+      font-size: 16px;
+      font-weight: 800;
+      box-shadow: 0 4px 15px rgba(37, 99, 235, 0.5);
+      cursor: pointer;
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+      transition: transform 0.2s;
+    }
+
+    .btn-ar:active {
+      transform: translateX(-50%) scale(0.95);
+    }
+
+    /* UI Layer */
     #ui-layer {
       position: absolute;
       top: 0;
@@ -341,6 +262,7 @@
       overflow-y: auto;
       padding: 20px;
       display: none;
+      pointer-events: auto;
     }
 
     #management-overlay.active {
@@ -465,10 +387,6 @@
       border-bottom: 1px solid #f1f5f9;
     }
 
-    .status-icon {
-      margin-right: 8px;
-    }
-
     .progress-bar-container {
       width: 100%;
       height: 8px;
@@ -478,18 +396,30 @@
       overflow: hidden;
     }
 
+    .progress-bar {
+      height: 100%;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.1s;
+    }
+
     .loading-indicator {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      background: rgba(255, 255, 255, 0.8);
-      padding: 10px 20px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 12px 24px;
       border-radius: 20px;
-      font-weight: 700;
+      font-weight: 800;
       color: var(--accent);
       display: none;
       z-index: 10;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .loading-indicator.active {
+      display: block;
     }
 
     .notification {
@@ -525,15 +455,37 @@
 </head>
 <body>
   
+  <!-- Fundo da Webcam (Desktop / Simulação) -->
+  <video id="webcam-bg" autoplay playsinline muted></video>
+
+  <!-- Model Viewer (Three.js + WebXR) -->
+  <!-- camera-controls: Permite zoom (pinça/scroll) e rotação 3D (arrastar) -->
+  <!-- ar: Ativa o modo de Realidade Aumentada verdadeira -->
+  <!-- ar-placement="floor": Detecta o chão/superfície para posicionar o objeto -->
+  <model-viewer 
+    id="viewer" 
+    camera-controls 
+    ar 
+    ar-modes="webxr scene-viewer quick-look" 
+    ar-placement="floor"
+    shadow-intensity="1"
+    auto-rotate
+    interaction-prompt="none">
+    
+    <!-- Botão customizado para entrar no modo AR -->
+    <button slot="ar-button" class="btn-ar">
+      👁️ Ver no meu ambiente (AR)
+    </button>
+  </model-viewer>
+
   <!-- UI Overlay -->
   <div id="ui-layer">
     <div id="loading-msg" class="loading-indicator">Carregando modelo 3D...</div>
     <div id="notification" class="notification"></div>
+    
     <div class="top-bar">
       <button id="btn-expand" aria-label="Expandir tela">⤢</button>
-      <div style="display: flex; gap: 10px;">
-        <button id="btn-open-settings" class="btn-pill" style="padding: 10px; border-radius: 50%;">⚙️</button>
-      </div>
+      <button id="btn-open-settings" class="btn-pill" style="padding: 10px; border-radius: 50%;">⚙️</button>
     </div>
 
     <div class="bottom-panel">
@@ -602,37 +554,10 @@
 
       <div class="loaded-models">
         <h3>MODELOS CARREGADOS:</h3>
-        <ul id="models-list">
-          <!-- populated dynamically -->
-        </ul>
+        <ul id="models-list"></ul>
       </div>
     </div>
   </div>
-
-  <!-- 3D Scene -->
-  <a-scene embedded 
-           vr-mode-ui="enabled: false" 
-           arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
-           cursor="rayOrigin: mouse" 
-           raycaster="objects: .clickable">
-    
-    <a-assets id="assets">
-      <!-- Assets will be loaded dynamically -->
-    </a-assets>
-
-    <a-entity id="modelo-ar" 
-              class="clickable"
-              gesture-handler
-              scale="3 3 3" 
-              position="0 1.6 -3">
-    </a-entity>
-    
-    <a-entity camera></a-entity>
-    
-    <!-- Lighting -->
-    <a-light type="ambient" color="#ffffff" intensity="0.6"></a-light>
-    <a-light type="directional" color="#ffffff" intensity="0.8" position="-1 2 1"></a-light>
-  </a-scene>
 
   <script>
     function showNotification(msg) {
@@ -695,8 +620,6 @@
         desc: "O mosquito fêmea coloca até 200 ovos em água parada. Os ovos são pretos e minúsculos!",
         duration: "1-3 dias",
         curiosity: "Resistem até 1 ano secos!",
-        color: "#F5F5DC",
-        fallbackGeometry: "primitive: sphere; radius: 0.2",
         modelUrl: "https://raw.githubusercontent.com/Lara-Martins04/Modelos-Aedes/1b633d8210da8470f6577e9c8833e25bae6211c2/ovo.glb"
       },
       larva: {
@@ -704,8 +627,6 @@
         desc: "A larva vive na água e respira na superfície. Ela se alimenta de matéria orgânica.",
         duration: "5-10 dias",
         curiosity: "Troca de pele 4 vezes antes de virar pupa!",
-        color: "#FFD700",
-        fallbackGeometry: "primitive: cylinder; radius: 0.1; height: 0.8",
         modelUrl: "https://raw.githubusercontent.com/Lara-Martins04/Modelos-Aedes/1b633d8210da8470f6577e9c8833e25bae6211c2/larva.glb"
       },
       pupa: {
@@ -713,8 +634,6 @@
         desc: "A pupa não se alimenta. É a fase de transformação — como uma crisálida!",
         duration: "2-3 dias",
         curiosity: "Em 2 dias, o mosquito adulto emerge da pupa!",
-        color: "#D2B48C",
-        fallbackGeometry: "primitive: sphere; radius: 0.3",
         modelUrl: "https://raw.githubusercontent.com/Lara-Martins04/Modelos-Aedes/1b633d8210da8470f6577e9c8833e25bae6211c2/pupa.glb"
       },
       mosquito: {
@@ -722,8 +641,6 @@
         desc: "O mosquito adulto vive de 30 a 40 dias. Só a fêmea pica para desenvolver seus ovos.",
         duration: "30-40 dias",
         curiosity: "Transmite dengue, zika e chikungunya!",
-        color: "#A9A9A9",
-        fallbackGeometry: "primitive: box; width: 0.5; height: 0.5; depth: 0.5",
         modelUrl: "https://raw.githubusercontent.com/Lara-Martins04/Modelos-Aedes/e2c31f7efda3bc6a6807f64eb1ce329a2ba8a1b4/mosquito2.glb"
       }
     };
@@ -731,46 +648,42 @@
     let currentStage = 'ovo';
     let objectUrls = {};
     let selectedFile = null;
+    const viewer = document.getElementById('viewer');
 
     document.addEventListener('DOMContentLoaded', async () => {
       setupUI();
       setupUploadUI();
       renderModelsList();
       
-      // Check camera access
+      // Inicia a webcam para o fundo (Desktop / Fora do modo AR)
       try {
-        await navigator.mediaDevices.getUserMedia({ video: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        document.getElementById('webcam-bg').srcObject = stream;
       } catch (err) {
-        console.warn("Camera access denied or not available:", err);
-        showNotification("⚠️ Acesso à câmera negado. Ative a câmera para ver em Realidade Aumentada.");
+        console.warn("Câmera não disponível para o fundo:", err);
       }
 
-      // Load models and THEN update stage
       await loadModelsToAssets();
       updateStage(currentStage);
     });
 
+    // Eventos do Model Viewer
+    viewer.addEventListener('load', () => {
+      document.getElementById('loading-msg').classList.remove('active');
+    });
+
+    viewer.addEventListener('error', (error) => {
+      console.error('Erro ao carregar o modelo:', error);
+      document.getElementById('loading-msg').classList.remove('active');
+      showNotification("⚠️ Erro ao carregar o modelo 3D.");
+    });
+
     async function loadModelsToAssets() {
-      const assetsEl = document.querySelector('#assets');
       for (const [stage, data] of Object.entries(stagesData)) {
         try {
-          const assetId = `model-${stage}`;
-          let assetItem = document.getElementById(assetId);
-          
-          if (!assetItem) {
-            assetItem = document.createElement('a-asset-item');
-            assetItem.setAttribute('id', assetId);
-            assetItem.setAttribute('crossorigin', 'anonymous');
-            assetsEl.appendChild(assetItem);
-          }
-
           const blob = await getModel(stage);
           if (blob) {
-            const url = URL.createObjectURL(blob);
-            objectUrls[stage] = url;
-            assetItem.setAttribute('src', url);
-          } else if (data.modelUrl) {
-            assetItem.setAttribute('src', data.modelUrl);
+            objectUrls[stage] = URL.createObjectURL(blob);
           }
         } catch (err) {
           console.error(`Error loading model for ${stage}:`, err);
@@ -801,18 +714,18 @@
 
       document.getElementById('btn-close-settings').addEventListener('click', () => {
         document.getElementById('management-overlay').classList.remove('active');
-        // Reload models if any were updated
-        loadModelsToAssets().then(() => {
-          updateStage(currentStage);
-        });
+        loadModelsToAssets().then(() => updateStage(currentStage));
       });
 
-      document.getElementById('modelo-ar').addEventListener('click', () => {
+      // Clique no modelo para mostrar curiosidade
+      viewer.addEventListener('click', (e) => {
+        // Ignora cliques se o usuário estiver arrastando/rotacionando
+        if (e.detail && e.detail.sourceEvent && e.detail.sourceEvent.type !== 'click') return;
         showNotification(`💡 Curiosidade: ${stagesData[currentStage].curiosity}`);
       });
     }
 
-    async function updateStage(stage) {
+    function updateStage(stage) {
       currentStage = stage;
       const data = stagesData[stage];
       
@@ -825,53 +738,10 @@
       document.getElementById('info-duration').textContent = `⏱ ${data.duration}`;
       document.getElementById('info-curiosity').textContent = `💡 ${data.curiosity}`;
       
-      const modelEl = document.getElementById('modelo-ar');
-      const loadingMsg = document.getElementById('loading-msg');
+      document.getElementById('loading-msg').classList.add('active');
       
-      // Reset model state
-      modelEl.removeAttribute('gltf-model');
-      modelEl.removeAttribute('geometry');
-      modelEl.removeAttribute('material');
-      
-      const assetId = `#model-${stage}`;
-      const assetItem = document.querySelector(assetId);
-
-      // Function to show fallback
-      const showFallback = () => {
-        loadingMsg.classList.remove('active');
-        modelEl.removeAttribute('gltf-model');
-        modelEl.setAttribute('geometry', data.fallbackGeometry);
-        modelEl.setAttribute('material', `color: ${data.color}; metalness: 0.5; roughness: 0.2`);
-      };
-
-      // Remove existing listeners to avoid duplicates
-      if (modelEl._handleLoad) modelEl.removeEventListener('model-loaded', modelEl._handleLoad);
-      if (modelEl._handleError) modelEl.removeEventListener('model-error', modelEl._handleError);
-
-      if (assetItem && assetItem.getAttribute('src')) {
-        loadingMsg.classList.add('active');
-        modelEl.setAttribute('gltf-model', assetId);
-        
-        // Listen for success
-        modelEl._handleLoad = () => {
-          loadingMsg.classList.remove('active');
-          modelEl.removeEventListener('model-loaded', modelEl._handleLoad);
-          modelEl.removeEventListener('model-error', modelEl._handleError);
-        };
-
-        // Listen for errors
-        modelEl._handleError = () => {
-          console.warn(`Erro ao carregar modelo para ${stage}, usando fallback.`);
-          showFallback();
-          modelEl.removeEventListener('model-loaded', modelEl._handleLoad);
-          modelEl.removeEventListener('model-error', modelEl._handleError);
-        };
-        
-        modelEl.addEventListener('model-loaded', modelEl._handleLoad);
-        modelEl.addEventListener('model-error', modelEl._handleError);
-      } else {
-        showFallback();
-      }
+      // Atualiza o modelo no viewer
+      viewer.src = objectUrls[stage] || data.modelUrl;
     }
 
     // --- UPLOAD LOGIC ---
@@ -890,19 +760,23 @@
       fileInput.addEventListener('change', (e) => {
         if (e.target.files.length > 0) handleFileSelect(e.target.files[0]);
       });
+      
       btnUpload.addEventListener('click', async () => {
         if (!selectedFile) return;
         const stage = document.querySelector('input[name="stage"]:checked').value;
         const progressBarContainer = document.getElementById('upload-progress');
         const progressBarFill = document.getElementById('progress-bar-fill');
+        
         progressBarContainer.classList.remove('hidden');
         btnUpload.disabled = true;
         let progress = 0;
+        
         const interval = setInterval(() => {
           progress += 10;
           progressBarFill.style.width = `${progress}%`;
           if (progress >= 100) clearInterval(interval);
         }, 50);
+        
         try {
           await saveModel(stage, selectedFile);
           setTimeout(() => {
@@ -912,7 +786,7 @@
             document.querySelector('.upload-box p').textContent = 'Arraste ou clique para fazer upload do .glb';
             btnUpload.disabled = true;
             renderModelsList();
-            alert('Upload concluído com sucesso! Clique em Voltar para ver as mudanças.');
+            alert('Upload concluído com sucesso! Feche esta janela para ver as mudanças.');
           }, 600);
         } catch (err) {
           console.error(err);
@@ -924,7 +798,10 @@
     }
 
     function handleFileSelect(file) {
-      if (!file.name.toLowerCase().endsWith('.glb')) { alert('Por favor, selecione um arquivo .glb válido.'); return; }
+      if (!file.name.toLowerCase().endsWith('.glb') && !file.name.toLowerCase().endsWith('.gltf')) { 
+        alert('Por favor, selecione um arquivo .glb ou .gltf válido.'); 
+        return; 
+      }
       selectedFile = file;
       document.querySelector('.upload-box p').textContent = `Arquivo selecionado: ${file.name}`;
       document.getElementById('btn-upload').disabled = false;
@@ -934,13 +811,13 @@
       const list = document.getElementById('models-list');
       list.innerHTML = '';
       const stages = [
-        { id: 'ovo', name: 'ovo.glb' }, { id: 'larva', name: 'larva.glb' },
-        { id: 'pupa', name: 'pupa.glb' }, { id: 'mosquito', name: 'mosquito.glb' }
+        { id: 'ovo', name: 'Ovo' }, { id: 'larva', name: 'Larva' },
+        { id: 'pupa', name: 'Pupa' }, { id: 'mosquito', name: 'Mosquito' }
       ];
       for (const stage of stages) {
         const exists = await hasModel(stage.id);
         const li = document.createElement('li');
-        const status = exists ? '✅' : '❌';
+        const status = exists ? '✅ Personalizado' : '🌐 Padrão (GitHub)';
         const actionText = exists ? 'Substituir' : 'Fazer upload';
         li.innerHTML = `
           <div><span class="status-icon">${status}</span><span>${stage.name}</span></div>
@@ -957,4 +834,3 @@
   </script>
 </body>
 </html>
-
